@@ -1,0 +1,99 @@
+name: $(Build.SourceBranchName)-$(Date:yyyyMMdd)$(Rev:.r)
+
+parameters:
+  - name: CX_ENABLED
+    type: boolean
+    displayName: 'Activación del Stage de Seguridad'
+    values:
+      - true
+      - false
+    default: true
+    
+  - name: SONAR_ENABLED
+    type: boolean
+    displayName: 'Activación del Sonar'
+    values:
+      - true
+      - false
+    default: true
+  
+  - name: UNIT_TEST_ENABLED
+    type: boolean
+    displayName: 'Activación de Pruebas Unitarias'
+    values:
+      - true
+      - false
+    default: true
+
+  - name: DEPLOY_ENABLED
+    type: boolean
+    displayName: 'Activación del Despliegue (solo features)'
+    values:
+      - true
+      - false
+    default: true
+
+  - name: AUTOMATED_TESTING_ENABLED
+    type: boolean
+    displayName: 'Activación de Pruebas Automatizadas'
+    values:
+      - true
+      - false
+    default: false
+
+schedules:  
+- cron: "0 8 * * 2"
+  displayName: "Run every Tuesday at 3 AM"
+  branches:
+    include:
+      - main
+  always: true 
+
+pr:
+  branches: { include: [ develop, main] }
+trigger:
+  branches:
+    include: [ develop, main, release/*, hotfix/*, bugfix/* ]
+  paths:
+    exclude: 
+    - azure-pipeline.yml
+
+resources:
+  repositories:
+    - repository: pipeline-templates-for-ocp
+      type: git
+      name: cdo-pipeline-templates/pipeline-templates-for-ocp
+      ref: main
+
+variables:
+  - name: DOCKERFILE_PATH
+    value: "./"
+  - name: PY_SOURCE_PATH
+    value: "./"
+  - name: OPENSHIFT_DEPLOY_NAME
+    value: tse-opt-conciliacion-comisiones
+  - name: CX_ONE_PROJECT_NAME
+    value: "EVM-tse-opt-conciliacion-comisiones"
+  - name: GITLEAKS_SCAN_PATH
+    value: "./"
+  - group: ocp-cross-tse
+  - group: cxo-cross-tse
+  - group: sonar-cross-tse
+  - group: creacion-tickets-prod-tse
+  - ${{ if or(eq(variables['Build.SourceBranch'], 'refs/heads/develop'), startsWith(variables['Build.SourceBranch'], 'refs/heads/bugfix/'), startsWith(variables['Build.SourceBranch'], 'refs/heads/feature/')) }}:
+      - group: ocp-dev
+  - ${{ if or(startsWith(variables['Build.SourceBranch'], 'refs/heads/hotfix/'), startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'))}}:
+      - group: ocp-cert
+  - ${{ if eq(variables['Build.SourceBranch'], 'refs/heads/main') }}:
+      - group: ocp-prdgye
+
+extends:
+  template: python/init.yml@pipeline-templates-for-ocp
+  parameters:
+    SONAR_TYPE: "cloud"
+    CX_ENABLED: ${{ parameters.CX_ENABLED }}
+    DEPLOY_ENABLED: ${{ parameters.DEPLOY_ENABLED }}
+    SONAR_ENABLED: ${{ parameters.SONAR_ENABLED }}
+    UNIT_TEST_ENABLED: ${{ parameters.UNIT_TEST_ENABLED }}
+    AUTOMATED_TESTING: ${{ parameters.AUTOMATED_TESTING_ENABLED }}
+    SOURCE_PATH: $(PY_SOURCE_PATH)
